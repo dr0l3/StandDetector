@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:id="@+id/bias_config_menu_item"
+        android:title="Bias config"
+        android:onClick="configBias"/>
+
+    <item android:id="@+id/update_classifier_menu_item"
+        android:title="Update classifier"
+        android:onClick="updateClassifiers"/>
+
+    <item android:id="@+id/reset_bluetooth_menu_item"
+        android:title="Reset BT"
+        android:onClick="resetBluetooth"/>
+
+    <item android:id="@+id/input_username_and_group_menu_item"
+        android:title="Edit username and group"
+        android:onClick="editUserGroupName"/>
+
+    <item android:id="@+id/toggle_sound_menu_item"
+        android:title="Toggle sound"
+        android:onClick="toggleSound"/>
+
+</menu>

@@ -1,0 +1,50 @@
+apply plugin: 'com.android.application'
+repositories{
+    maven { url "https://jitpack.io" }
+    flatDir {
+        dirs 'localLibraries'
+    }
+}
+
+android {
+    compileSdkVersion 23
+    buildToolsVersion "23.0.3"
+
+    defaultConfig {
+        applicationId "com.droletours.com.standdetector"
+        minSdkVersion 21
+        targetSdkVersion 23
+        versionCode 1
+        versionName "1.0"
+    }
+
+    dexOptions{
+        incremental true
+    }
+
+
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    compile group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
+    compile group: 'com.parse', name: 'parse-android', version: '1.13.0'
+    compile group: 'com.squareup.moshi', name: 'moshi', version: '1.1.0'
+    compile group: 'com.squareup.okio', name: 'okio', version: '1.8.0'
+    compile 'com.github.PhilJay:MPAndroidChart:v2.2.4'
+    compile files( 'localLibraries/libsvm.jar')
+    compile files( 'localLibraries/Weka3ForAndroid.jar')
+    compile files( 'localLibraries/LibSVMWrapper.jar')
+    compile files( 'localLibraries/training.jar')
+    wearApp project(':wear')
+    testCompile 'junit:junit:4.12'
+    compile 'com.android.support:appcompat-v7:23.4.0'
+    compile 'com.google.android.gms:play-services:9.0.0'
+}
