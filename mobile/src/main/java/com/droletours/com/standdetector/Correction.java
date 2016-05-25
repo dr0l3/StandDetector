@@ -9,6 +9,10 @@ public class Correction {
     private String classified_sitstand;
     private String corrected_event;
     private String correction_sitstand;
+    public static final String CORRECTION_SIT =  "/correction_sit";
+    public static final String CORRECTION_STAND =  "/correction_stand";
+    public static final String CORRECTION_NULL =  "/correction_null";
+    public static final String CORRECTION_WRONG =  "/correction_wrong";
 
     public Correction(String classified_event, String classified_sitstand, String corrected_event, String correction_sitstand) {
         this.classified_event = classified_event;

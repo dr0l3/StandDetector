@@ -195,6 +195,7 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     private static final int SIT_DOWN_DETECTED_SOUND = R.raw.sitdowndetected;
 
 
+
     /** Intent request codes */
     private static final int REQUEST_CONNECT_DEVICE_SECURE = 1;
     private static final int REQUEST_CONNECT_DEVICE_INSECURE = 2;
@@ -203,6 +204,7 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     /** Log codes */
     private static final String CLASSIFICATION_DEBUG = "Classification";
     private static final String SOUND_DEBUG = "Sound";
+    private static final String TAG = "debug";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -352,6 +354,8 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         groupname = usergroupSharedPreferences.getString("Group_name", "dummy_group");
 
 
+
+
         SharedPreferences usersoundtoggglestatus = getSharedPreferences(USER_SOUND_TOGGLE_STATUS, 0);
         toggleSoundStatus = usersoundtoggglestatus.getBoolean("soundtogglestatus", false);
         if( CLASSIFIER_OBJECT_ID == null){
@@ -392,7 +396,22 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         public void onReceive(Context context, Intent intent) {
             Log.d("debug", "onReceive = " + intent.toString());
             String message_path = intent.getStringExtra("message_path");
-            //processMessage(message_path);
+            switch (message_path){
+                case Correction.CORRECTION_SIT:
+                    correctSit(null);
+                    break;
+                case Correction.CORRECTION_STAND:
+                    correctStand(null);
+                    break;
+                case Correction.CORRECTION_NULL:
+                    correctNull(null);
+                    break;
+                case Correction.CORRECTION_WRONG:
+                    correctWrong(null);
+                    break;
+                default:
+                    Log.d(TAG, "mMessageReceiver got unexpected path: " + message_path );
+            }
         }
     };
 
@@ -434,6 +453,7 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     public void onDestroy() {
         super.onDestroy();
         unregisterReceiver(mRingermodeReceiver);
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mMessageReceiver);
         Wearable.NodeApi.removeListener(mGoogleApiClient, mNodeListener);
         mGoogleApiClient.disconnect();
     }
@@ -520,6 +540,12 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         if (CLASSIFIER_OBJECT_ID == null){
             //open the fragment
             openUsernameFragment();
+        }
+
+        if(eventClassifier == null) {
+            Log.d(TAG, "Classifier == null");
+        } else {
+            Log.d(TAG, eventClassifier.toString());
         }
 
         mScheduler.execute(new Runnable() {
@@ -864,6 +890,9 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
             //classify the window
             try {
                 Log.d(CLASSIFICATION_DEBUG, "Size of sensoreventlist = " + mSensorEventList.size());
+                if(eventClassifier == null){
+                    Log.d(TAG, "Classifier = null");
+                }
                 String label_sitstand_string;
                 String label_event_string;
                 double[] dist_sitstand;
@@ -1275,9 +1304,13 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         Toast.makeText(getApplicationContext(), "User and group name updated", Toast.LENGTH_SHORT).show();
 
         ParseQuery<ParseObject> query = ParseQuery.getQuery("ClassifierConfiguration");
+        Log.d("debug", "User = " + user + " Group = " + group);
         query.getInBackground(CLASSIFIER_OBJECT_ID, new GetCallback<ParseObject>() {
             @Override
             public void done(ParseObject parseObject, ParseException e) {
+                if(e != null) {
+                    Log.d("debug", e.toString());
+                }
                 parseObject.put("Group", group);
                 parseObject.put("Username", user);
                 parseObject.saveInBackground();
