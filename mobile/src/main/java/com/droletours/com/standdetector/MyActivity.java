@@ -22,8 +22,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.os.Vibrator;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.view.Menu;
@@ -47,8 +45,6 @@ import com.github.mikephil.charting.data.BarEntry;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
 import com.parse.GetCallback;
 import com.parse.Parse;
@@ -174,14 +170,12 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     /** Control state */
     private boolean stream_to_server;
     private static boolean isParseInitialized = false;
-    private boolean bluetoothRunning;
     private int currentGlobalSoundSetting;
     private boolean toggleSoundStatus;
     private long time_of_last_tap;
     private BroadcastReceiver mRingermodeReceiver;
     private IntentFilter mRingermodeIntentFilter;
     private boolean event_in_last_cycle;
-    private String remoteId;
 
     /** Rest */
     private Moshi moshi = new Moshi.Builder().build();
@@ -193,13 +187,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     private static final int TAP_DETECTED_SOUND = R.raw.tapdetected;
     private static final int STAND_UP_DETECTED_SOUND = R.raw.standupdetected;
     private static final int SIT_DOWN_DETECTED_SOUND = R.raw.sitdowndetected;
-
-
-
-    /** Intent request codes */
-    private static final int REQUEST_CONNECT_DEVICE_SECURE = 1;
-    private static final int REQUEST_CONNECT_DEVICE_INSECURE = 2;
-    private static final int REQUEST_ENABLE_BT = 3;
 
     /** Log codes */
     private static final String CLASSIFICATION_DEBUG = "Classification";
@@ -228,32 +215,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
             public void run() {
                 mGoogleApiClient = new GoogleApiClient.Builder(getApplicationContext())
                         .addApi(Wearable.API)
-                        .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
-                            @Override
-                            public void onConnected(@Nullable Bundle bundle) {
-                                Wearable.NodeApi.getConnectedNodes(mGoogleApiClient).setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
-                                    @Override
-                                    public void onResult(@NonNull NodeApi.GetConnectedNodesResult getConnectedNodesResult) {
-                                        if(getConnectedNodesResult.getStatus().isSuccess() && getConnectedNodesResult.getNodes().size()> 0){
-                                            remoteId = getConnectedNodesResult.getNodes().get(0).getId();
-                                        }
-                                    }
-                                });
-                            }
-
-                            @Override
-                            public void onConnectionSuspended(int i) {
-
-                            }
-                        })
-                        .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
-                            @Override
-                            public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-                                if(connectionResult.getErrorCode() == ConnectionResult.API_UNAVAILABLE){
-                                    Toast.makeText(getApplicationContext(), "Wearable api unavailable!", Toast.LENGTH_LONG).show();
-                                }
-                            }
-                        })
                         .build();
             }
         });
