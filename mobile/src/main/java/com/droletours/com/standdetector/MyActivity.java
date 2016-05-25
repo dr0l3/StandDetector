@@ -48,7 +48,6 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
 import com.parse.GetCallback;
@@ -116,6 +115,8 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     private double START_DELAY_SECONDS = 5;
     private Integer SIZE_OF_RECENT_WINDOWS = 10;
     private long MIN_TIME_BETWEEN_TAPS_IN_MILLIS = 8000;
+    private long[] SIT_PATTERN = {0, 200, 200};
+    private long[] STAND_PATTERN = {0,1000};
 
     /** Android resources */
     private SensorManager mSensorManager;
@@ -128,7 +129,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     private AudioManager mAudioManager;
     private Vibrator mVibrator;
     private static SoundPool soundPool;
-    private NodeApi.NodeListener mNodeListener;
     private GoogleApiClient mGoogleApiClient;
 
 
@@ -211,6 +211,11 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
+        mScheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1);
+        mScheduler.setRemoveOnCancelPolicy(true);
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "pwl");
+
         if(!isParseInitialized) {
             Parse.initialize(new Parse.Configuration.Builder(this).applicationId(PARSE_SERVER_APP_ID).server(PARSE_SERVER_URI).build());
             ParseInstallation.getCurrentInstallation().saveInBackground();
@@ -218,51 +223,42 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
             isParseInitialized = true;
         }
 
-        mGoogleApiClient = new GoogleApiClient.Builder(getApplicationContext())
-                .addApi(Wearable.API)
-                .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
-                    @Override
-                    public void onConnected(@Nullable Bundle bundle) {
-                        Wearable.NodeApi.addListener(mGoogleApiClient, mNodeListener);
-                        //Wearable.MessageApi.addListener(mGoogleApiClient, )
-                        Wearable.NodeApi.getConnectedNodes(mGoogleApiClient).setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
+        mScheduler.execute(new Runnable() {
+            @Override
+            public void run() {
+                mGoogleApiClient = new GoogleApiClient.Builder(getApplicationContext())
+                        .addApi(Wearable.API)
+                        .addConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
                             @Override
-                            public void onResult(@NonNull NodeApi.GetConnectedNodesResult getConnectedNodesResult) {
-                                if(getConnectedNodesResult.getStatus().isSuccess() && getConnectedNodesResult.getNodes().size()> 0){
-                                    remoteId = getConnectedNodesResult.getNodes().get(0).getId();
+                            public void onConnected(@Nullable Bundle bundle) {
+                                Wearable.NodeApi.getConnectedNodes(mGoogleApiClient).setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
+                                    @Override
+                                    public void onResult(@NonNull NodeApi.GetConnectedNodesResult getConnectedNodesResult) {
+                                        if(getConnectedNodesResult.getStatus().isSuccess() && getConnectedNodesResult.getNodes().size()> 0){
+                                            remoteId = getConnectedNodesResult.getNodes().get(0).getId();
+                                        }
+                                    }
+                                });
+                            }
+
+                            @Override
+                            public void onConnectionSuspended(int i) {
+
+                            }
+                        })
+                        .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
+                            @Override
+                            public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+                                if(connectionResult.getErrorCode() == ConnectionResult.API_UNAVAILABLE){
+                                    Toast.makeText(getApplicationContext(), "Wearable api unavailable!", Toast.LENGTH_LONG).show();
                                 }
                             }
-                        });
-                    }
-
-                    @Override
-                    public void onConnectionSuspended(int i) {
-
-                    }
-                })
-                .addOnConnectionFailedListener(new GoogleApiClient.OnConnectionFailedListener() {
-                    @Override
-                    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-                        if(connectionResult.getErrorCode() == ConnectionResult.API_UNAVAILABLE){
-                            Toast.makeText(getApplicationContext(), "Wearable api unavailable!", Toast.LENGTH_LONG).show();
-                        }
-                    }
-                })
-                .build();
+                        })
+                        .build();
+            }
+        });
 
         LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver, new IntentFilter("Message-event"));
-
-        mNodeListener = new NodeApi.NodeListener() {
-            @Override
-            public void onPeerConnected(Node node) {
-                remoteId = node.getId();
-            }
-
-            @Override
-            public void onPeerDisconnected(Node node) {
-                Log.d("debug", node.getDisplayName() + " disconnected");
-            }
-        };
 
         createSoundPool();
         soundPoolMap = new HashMap<>();
@@ -294,12 +290,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
 
         latest_events = new LinkedBlockingQueue<>();
         chart_events = new ArrayList<>();
-
-
-        mScheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1);
-        mScheduler.setRemoveOnCancelPolicy(true);
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "pwl");
 
         mTextViewAccX = (TextView) findViewById(R.id.textViewAccX);
         mTextViewAccY= (TextView) findViewById(R.id.textViewAccY);
@@ -353,42 +343,31 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         username = usergroupSharedPreferences.getString("User_name", "dummy_user");
         groupname = usergroupSharedPreferences.getString("Group_name", "dummy_group");
 
-
-
-
         SharedPreferences usersoundtoggglestatus = getSharedPreferences(USER_SOUND_TOGGLE_STATUS, 0);
         toggleSoundStatus = usersoundtoggglestatus.getBoolean("soundtogglestatus", false);
-        if( CLASSIFIER_OBJECT_ID == null){
-            try
-            {
-                InputStream isEventClassifier = getAssets().open(STARTING_EVENT_CLASSIFIER);
-                eventClassifier = (Classifier) weka.core.SerializationHelper.read(isEventClassifier);
 
-                InputStream isStandSitClassifier = getAssets().open(STARTING_SITSTAND_CLASSIFIER);
-                standsitClassifier = (Classifier) weka.core.SerializationHelper.read(isStandSitClassifier);
-
-            } catch (Exception e){
-                e.printStackTrace();
-            }
-        }
-
-        FileInputStream fis;
-        try {
-            fis = openFileInput(CLASSIFICATIONS_FILE_NAME);
-            ObjectInputStream ois = new ObjectInputStream(fis);
-            chart_events = (List<Classification>) ois.readObject();
-            Iterator<Classification> iter = chart_events.iterator();
-            while(iter.hasNext()){
-                Classification event = iter.next();
-                if( isOlderThan24Hours(event)){
-                    chart_events.remove(event);
-                } else {
-                    break;
+        mScheduler.execute(new Runnable() {
+            @Override
+            public void run() {
+                FileInputStream fis;
+                try {
+                    fis = openFileInput(CLASSIFICATIONS_FILE_NAME);
+                    ObjectInputStream ois = new ObjectInputStream(fis);
+                    chart_events = (List<Classification>) ois.readObject();
+                    Iterator<Classification> iter = chart_events.iterator();
+                    while(iter.hasNext()){
+                        Classification event = iter.next();
+                        if( isOlderThan24Hours(event)){
+                            chart_events.remove(event);
+                        } else {
+                            break;
+                        }
+                    }
+                } catch (IOException | ClassNotFoundException e) {
+                    e.printStackTrace();
                 }
             }
-        } catch (IOException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
+        });
     }
 
     private BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
@@ -442,27 +421,22 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         return true;
     }
 
-
     @Override
     public void onStart(){
         super.onStart();
     }
-
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         unregisterReceiver(mRingermodeReceiver);
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mMessageReceiver);
-        Wearable.NodeApi.removeListener(mGoogleApiClient, mNodeListener);
         mGoogleApiClient.disconnect();
     }
 
     @Override
     public void onResume(){
-
         registerReceiver(mRingermodeReceiver,mRingermodeIntentFilter);
-
         SharedPreferences biasConfigs = getSharedPreferences(BIAS_CORRECTIONS, 0);
         float bias_x_pos = biasConfigs.getFloat("bias_x_pos", 0);
         float bias_y_pos = biasConfigs.getFloat("bias_y_pos", 0);
@@ -487,6 +461,18 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
             CLASSIFIER_OBJECT_ID = parseConfigs.getString("Object_ID", null);
             if(CLASSIFIER_OBJECT_ID == null){
                 //if not in shared preferences then create a new object
+                try
+                {
+                    InputStream isEventClassifier = getAssets().open(STARTING_EVENT_CLASSIFIER);
+                    eventClassifier = (Classifier) weka.core.SerializationHelper.read(isEventClassifier);
+
+                    InputStream isStandSitClassifier = getAssets().open(STARTING_SITSTAND_CLASSIFIER);
+                    standsitClassifier = (Classifier) weka.core.SerializationHelper.read(isStandSitClassifier);
+
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
+
                 try {
                     ByteArrayOutputStream bos_evnt = new ByteArrayOutputStream();
                     ObjectOutputStream oos_evnt = new ObjectOutputStream(bos_evnt);
@@ -555,7 +541,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                 updateBarChart();
             }
         });
-
 
         // Check is Google Play Services available
         int connectionResult = GooglePlayServicesUtil.isGooglePlayServicesAvailable(getApplicationContext());
@@ -649,7 +634,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
 
     public void configBias(View view) {
@@ -682,7 +666,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         editor.putFloat("bias_y_neg", bias_y_neg);
         editor.putFloat("bias_z_neg", bias_z_neg);
         editor.apply();
-
         mTextViewClassification.setText(biasConfiguration.toString());
     }
 
@@ -710,7 +693,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                     }
                 }
             });
-
         }
     }
 
@@ -857,8 +839,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         Log.d(CLASSIFICATION_DEBUG, "Classification started");
     }
 
-
-
     Runnable classificationRunnable = new Runnable() {
         @Override
         public void run(){
@@ -880,12 +860,10 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
             //calculate the features
             window.calculateAllFeatures();
 
-
             //create Instances-object
             Instances unlabeled = WekaUtil.getInstances(window, ClassifierType.EVENT_SNIFFER);
             //insert DenseInstance into Instances-object
             unlabeled.add(WekaUtil.convertWindowToInstance(window, unlabeled));
-
 
             //classify the window
             try {
@@ -906,8 +884,8 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                 if(tap> 0 && tap < 4){
                     //Tap detected!
                     if(getTimeSinceLastTap() > MIN_TIME_BETWEEN_TAPS_IN_MILLIS) {
-                        acknowledgeTap();
-                        correctWindowUsingInference();
+                        //acknowledgeTap();
+                        //correctWindowUsingInference();
                     } else {
                         Log.d("Number Of Taps", "Tap rejected. Was too close to other tap!");
                     }
@@ -1121,22 +1099,17 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                 if(toggleSoundStatus){
                     playSound(R.raw.sitdowndetected);
                 } else {
-                    long[] pattern = {0, 1000, 500, 1000, 500};
-                    mVibrator.vibrate(pattern, -1);
+                    mVibrator.vibrate(SIT_PATTERN, 10);
                 }
             } else if (classification == ClassifierPrediction.STAND){
                 if(toggleSoundStatus){
                     playSound(R.raw.standupdetected);
                 } else {
-                    long[] pattern = {0, 500, 1000, 500, 1000, 500, 1000};
-                    mVibrator.vibrate(pattern, -1);
+                    mVibrator.vibrate(STAND_PATTERN, 4);
                 }
             }
         }
-
-
     }
-
 
     private void streamClassificationToServer(ClassificationEventRecord classificationEventRecord) {
         String json = classificationEventRecordJsonAdapter.toJson(classificationEventRecord);
@@ -1265,7 +1238,6 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
             e.printStackTrace();
         }
     }
-
 
     public void updateClassifiers(MenuItem item) {
         updateClassifiers();
