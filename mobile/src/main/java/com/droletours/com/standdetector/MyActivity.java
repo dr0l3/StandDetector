@@ -111,8 +111,16 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     private double START_DELAY_SECONDS = 5;
     private Integer SIZE_OF_RECENT_WINDOWS = 10;
     private long MIN_TIME_BETWEEN_TAPS_IN_MILLIS = 8000;
-    private long[] SIT_PATTERN = {0, 200, 200};
-    private long[] STAND_PATTERN = {0,1000};
+    private long SHORT_BREAK = 250;
+    private long SHORT_VIBRATE = 250;
+    private long VERY_LONG_VIBRATE = 4000;
+    private long START_IMMEDEATELY = 0;
+    private long[] SIT_PATTERN = {START_IMMEDEATELY,
+            SHORT_VIBRATE, SHORT_BREAK, SHORT_VIBRATE, SHORT_BREAK,
+            SHORT_VIBRATE, SHORT_BREAK, SHORT_VIBRATE, SHORT_BREAK,
+            SHORT_VIBRATE, SHORT_BREAK, SHORT_VIBRATE, SHORT_BREAK,
+            SHORT_VIBRATE, SHORT_BREAK, SHORT_VIBRATE, SHORT_BREAK};
+    private long[] STAND_PATTERN = {0,VERY_LONG_VIBRATE};
 
     /** Android resources */
     private SensorManager mSensorManager;
@@ -131,8 +139,8 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     /** Weka related */
     private Classifier eventClassifier;
     private Classifier standsitClassifier;
-    private String STARTING_EVENT_CLASSIFIER = "1463506166623_filteredclassifierevent_sniffer.model";
-    private String STARTING_SITSTAND_CLASSIFIER = "1463505129296_filteredclassifiersit_stand_classifier.model";
+    private String STARTING_EVENT_CLASSIFIER = "1464260566112_filteredclassifierevent_sniffer.model";
+    private String STARTING_SITSTAND_CLASSIFIER = "1464260179839_filteredclassifiersit_stand_classifier.model";
 
     /** Application data */
     private List<SensorEventRecord> mSensorEventList;
@@ -307,6 +315,13 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         SharedPreferences usersoundtoggglestatus = getSharedPreferences(USER_SOUND_TOGGLE_STATUS, 0);
         toggleSoundStatus = usersoundtoggglestatus.getBoolean("soundtogglestatus", false);
 
+        mScheduler.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                updateClassifiersEventually();
+            }
+        }, 1,1,TimeUnit.HOURS);
+
         mScheduler.execute(new Runnable() {
             @Override
             public void run() {
@@ -314,7 +329,8 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                 try {
                     fis = openFileInput(CLASSIFICATIONS_FILE_NAME);
                     ObjectInputStream ois = new ObjectInputStream(fis);
-                    chart_events = (List<Classification>) ois.readObject();
+                    List<Classification> fromFile = (List<Classification>) ois.readObject();
+                    chart_events.addAll(fromFile);
                     Iterator<Classification> iter = chart_events.iterator();
                     while(iter.hasNext()){
                         Classification event = iter.next();
@@ -324,6 +340,7 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                             break;
                         }
                     }
+                    updateBarChart();
                 } catch (IOException | ClassNotFoundException e) {
                     e.printStackTrace();
                 }
@@ -334,7 +351,7 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
     private BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            Log.d("debug", "onReceive = " + intent.toString());
+            //Log.d("debug", "onReceive = " + intent.toString());
             String message_path = intent.getStringExtra("message_path");
             switch (message_path){
                 case Correction.CORRECTION_SIT:
@@ -469,7 +486,7 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                             SharedPreferences.Editor editor = getSharedPreferences(CLASSIFIER_PARSE_OBJECT_ID, 0).edit();
                             editor.putString("Object_ID", CLASSIFIER_OBJECT_ID);
                             editor.apply();
-                            Log.d("stuff", "ClassifierObjectID Set = " + CLASSIFIER_OBJECT_ID);
+                            //Log.d("stuff", "ClassifierObjectID Set = " + CLASSIFIER_OBJECT_ID);
                         }
                     });
 
@@ -490,9 +507,9 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
         }
 
         if(eventClassifier == null) {
-            Log.d(TAG, "Classifier == null");
+            //Log.d(TAG, "Classifier == null");
         } else {
-            Log.d(TAG, eventClassifier.toString());
+            //Log.d(TAG, eventClassifier.toString());
         }
 
         mScheduler.execute(new Runnable() {
@@ -514,7 +531,7 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                     finish();
                 }
             });
-        } else {
+        } else if (mGoogleApiClient != null){
             mGoogleApiClient.connect();
         }
 
@@ -839,7 +856,7 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                 double label_sitstand;
                 double[] dist_event = eventClassifier.distributionForInstance(unlabeled.firstInstance());
                 unlabeled.firstInstance().setClassValue(label);
-                double tap = unlabeled.firstInstance().value(unlabeled.classIndex()-4);
+                /*double tap = unlabeled.firstInstance().value(unlabeled.classIndex()-4);
                 Log.d("Number Of Taps", String.valueOf(tap));
 
                 if(tap> 0 && tap < 4){
@@ -850,7 +867,7 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                     } else {
                         Log.d("Number Of Taps", "Tap rejected. Was too close to other tap!");
                     }
-                }
+                }*/
 
                 //prepare for the next classification
                 unlabeled = WekaUtil.getInstances(window, ClassifierType.SIT_STAND_CLASSIFIER);
@@ -1060,13 +1077,13 @@ public class MyActivity extends Activity implements UsernameDialogFragment.UserG
                 if(toggleSoundStatus){
                     playSound(R.raw.sitdowndetected);
                 } else {
-                    mVibrator.vibrate(SIT_PATTERN, 10);
+                    mVibrator.vibrate(SIT_PATTERN, -1);
                 }
             } else if (classification == ClassifierPrediction.STAND){
                 if(toggleSoundStatus){
                     playSound(R.raw.standupdetected);
                 } else {
-                    mVibrator.vibrate(STAND_PATTERN, 4);
+                    mVibrator.vibrate(STAND_PATTERN, -1);
                 }
             }
         }

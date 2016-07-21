@@ -30,6 +30,8 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 
 /**
@@ -58,15 +60,9 @@ public class InteractiveWatchFaceService extends CanvasWatchFaceService {
 
         private float mXOffset;
         private float mYOffset;
-        private float mTextSpacingHeight;
         private int mScreenTextColor = Color.WHITE;
+        private DateFormat mDateFormat;
 
-        private int mTouchCommandTotal;
-        private int mTouchCancelCommandTotal;
-        private int mTapCommandTotal;
-
-        private int mTouchCoordinateX;
-        private int mTouchCoordinateY;
 
         private final Rect mCardBounds = new Rect();
 
@@ -92,19 +88,13 @@ public class InteractiveWatchFaceService extends CanvasWatchFaceService {
                     .build());
 
             Resources resources = InteractiveWatchFaceService.this.getResources();
-            mTextSpacingHeight = resources.getDimension(R.dimen.interactive_text_size);
 
             mTextPaint = new Paint();
             mTextPaint.setColor(mScreenTextColor);
             mTextPaint.setTypeface(BOLD_TYPEFACE);
             mTextPaint.setAntiAlias(true);
 
-            mTouchCommandTotal = 0;
-            mTouchCancelCommandTotal = 0;
-            mTapCommandTotal = 0;
-
-            mTouchCoordinateX = 0;
-            mTouchCoordinateX = 0;
+            mDateFormat = new SimpleDateFormat("HH:mm");
         }
 
         @Override
@@ -188,7 +178,6 @@ public class InteractiveWatchFaceService extends CanvasWatchFaceService {
                     Intent intent = new Intent(getApplicationContext(), MainActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(intent);
-                    mTapCommandTotal++;
                     break;
             }
 
@@ -200,9 +189,7 @@ public class InteractiveWatchFaceService extends CanvasWatchFaceService {
             /** Draws background */
             canvas.drawColor(Color.BLACK);
             Calendar mcal = Calendar.getInstance(getResources().getConfiguration().locale);
-            int hour = mcal.get(Calendar.HOUR_OF_DAY);
-            int minute = mcal.get(Calendar.MINUTE);
-            String time_tring = hour + ":" + minute;
+            String time_tring = mDateFormat.format(mcal.getTime());
             canvas.drawText(time_tring,mXOffset, mYOffset,mTextPaint);
 
 

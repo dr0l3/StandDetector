@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
 
     private GestureDetector mGestureDetector;
     private DismissOverlayView mDismissOverlayView;
+    private long time_at_last_correction;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +56,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         handler = new Handler();
+        time_at_last_correction = 0;
 
         mDismissOverlayView = (DismissOverlayView) findViewById(R.id.dismiss_overlay);
         mDismissOverlayView.setIntroText("Long press to exit");
@@ -68,10 +70,12 @@ public class MainActivity extends Activity {
 
             public boolean onScroll(MotionEvent ev1, MotionEvent ev2, float distanceX, float distanceY){
                 Log.d("debug", String.format("Scroll performed! (%1$f, %2$f) -> (%3$f, %4$f)", ev1.getRawX(), ev1.getRawY(), ev2.getRawX(), ev2.getRawY()));
-                if(isCloseToEdge(ev2)){
+                long current_time = System.currentTimeMillis();
+                if(isCloseToEdge(ev2) && timePassedSinceLastCorrection(current_time) > 1000){
                     SwipeDirection direction = getDirectionFromEvent(ev2);
                     handleCorrection(direction);
                     Log.d("debug", "Direction swiped = " + direction.toString());
+                    time_at_last_correction = current_time;
                     return true;
                 }
                 return false;
@@ -132,6 +136,10 @@ public class MainActivity extends Activity {
             public void onConnectionSuspended(int i) {
             }
         }).addApi(Wearable.API).build();
+    }
+
+    private long timePassedSinceLastCorrection(long current_time) {
+        return current_time - time_at_last_correction;
     }
 
     @Override
